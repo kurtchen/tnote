@@ -268,7 +268,7 @@ def main():
     if options.bladd == False: #don't need to load this if we're just adding a note 
         counter = 0
         for entries in sorted(posix.listdir(note_file)):
-            if not entries.startswith("tnoterc") and not entries.endswith("~"): #filter out backup + config files
+            if not entries.startswith("tnoterc") and not entries.endswith("~") and not entries.startswith(".git"): #filter out backup + config files
                 if options.importance == None or entries.startswith('00'+str(options.importance)+'-'): #filter by importance if needed
                     if options.group == None or entries.endswith(':'+options.group): #filter by group if needed
                         if options.search != None: #do search 

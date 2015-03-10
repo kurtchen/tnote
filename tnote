@@ -1,0 +1,316 @@
+#!/usr/bin/env python
+#
+#       tnote-0.2-0
+#       
+#       Copyright 2009 Ben Holroyd <holroyd.ben@gmail.com>
+#
+#       This program is free software; you can redistribute it and/or modify
+#       it under the terms of the GNU General Public License as published by
+#       the Free Software Foundation; either version 3 of the License, or
+#       (at your option) any later version.
+#       
+#       This program is distributed in the hope that it will be useful,
+#       but WITHOUT ANY WARRANTY; without even the implied warranty of
+#       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#       GNU General Public License for more details.
+#       
+#       You should have received a copy of the GNU General Public License
+#       along with this program; if not, write to the Free Software
+#       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#       MA 02110-1301, USA.
+#
+import sys, re, posix
+from optparse import OptionParser, OptionGroup
+from os import environ
+
+note_file = environ['HOME']+"/.tnote/"
+
+def colour_print(filename,counter):
+    if options.blnocolour:
+        if len(filename.split(':')) == 1:
+            return '[%d] ' % counter
+        else:
+            return '[%d] :%s: ' % (counter, filename.split(':')[1])
+     
+    if filename.split('-')[0] == '' or len(filename.split('-')) == 1: colour = '0;0'
+                      #red,yellow,green,std
+    else: colour = ['1;91','1;93','1;92','0;0'][int(filename.split('-')[0])-1]       
+    
+    if len(filename.split(':')) == 1: #just importance
+        return '\033[%sm[%d]\033[0;0m ' % (colour,counter)
+    else:  #group and importance
+        return '\033[%sm[%d]\033[01;94m :%s:\033[0;0m ' % (colour,counter,filename.split(':')[1])
+                               
+                               
+def get_defaults():
+    #incase rc file or .notes directory dont exist
+    try: 
+        if options.bladd == False:
+            file = open(note_file+"tnoterc",'r')
+        else:
+            file = open(note_file+"tnoterc",'a')
+    except IOError:
+        try:
+            posix.mkdir(note_file)
+            write_rc_file()	
+        except OSError:
+            print "error reading/creating .tnote directory"
+            sys.exit(1)
+    # read in the defaults from notesrc 
+    date, editor = '',''
+    for lines in open(note_file+"tnoterc",'r'):
+        if lines[1] != "#":			
+            if lines [:4] == "date":
+                date = lines[5:-1] 	
+            if lines [:6] == "editor":
+                editor = lines[7:-1]    
+    return date, editor
+
+def write_rc_file():  #sets up notesrc file		
+    file = open(note_file+"example",'w').write ("Welcome to tnote.\n\
+if you have invoked this program without any arguments you should be able to see this entire note the default view is to show all notes in full in chronological order.\n\
+just before the note you will see a number in square brackets [] , each note has one & it can be used to reference specific notes.\n\n\
+There are a few ways to reference notes either by a single number, typing 'tnote 0' will bring this up, indexes can also be minus numbers so 'tnote -1' will bring up the last note which will be this note.\n\
+The first way to view a range of notes is to use a colon 'tnote :' would show all notes, 'tnote 5:' would show notes 5 onwards and 'tnote 6:8' would show notes 6 to 8.\n\
+The final way to view a range of notes is to reference each one by its index separated by commas so 'tnote 2,5,4' would show notes 2, 5 and 4 in that order. The man page has full details of which options accept what.\n\n\
+To see a brief one line summary of a note, invoke tnote with the -b --brief flag, again a range of notes can be specified. It will show the first lines worth of the note newlines are indicated by hashes '#'.\n\n\
+You can search for a note with the -s --search flag, which accepts words or regular expressions.\n\n\
+To add notes use the -a or --add option, the note can be given from the command line (enclose in single quotes '' to stop bash trying to do anything with it). If no note is not added from the command line your default text editor will open and you can add it there.\n\n\
+To modify a note use the -m or --modify flags, a range can be specified and the notes will be openned in your default text editor.\n\n\
+The final option is to delete using the -d or --delete, this too accepts a range of notes, and will delete all notes.\n\n\
+If you would like to add the date to a note type ':D', which will then be replaced by the date when the note is saved, to modify the way the date is formated, read on.\n\n\
+the ~/.tnote/tnoterc file has at present 2 options one is the default text editor, which can be changed if you prefer to use a different one. The second option is the date format it uses the same format as strftime, or if you have 'date' installed 'man date' should give you most of the options.\n\n\
+This is the end of this short introduction to tnote, please enjoy. ")
+    file = open(note_file+"tnoterc",'w')
+    file.write ("#defaults\n")
+    file.write ("#date format\n")
+    file.write ("date=%d-%m-%Y_%H:%M:%S\n")
+    file.write ("#default editor\n")	
+    try:
+        editor = environ['EDITOR']
+    except:
+        editor = raw_input("unable to detect your default text editor, please enter one now:")
+        file.close()
+        sys.exit(1)
+    else:
+        file.write ("editor=%s\n" % editor)
+        file.close()
+        
+def open_file(DICT,counter):
+    if counter < len(DICT):
+        name = note_file + DICT[counter] 
+        file = open(name,'r')
+        text = file.read()
+        file.close()	
+        return text
+        
+def get_time (format):
+    import datetime
+    return datetime.datetime.now().strftime(format)
+
+def sub_date(filename, date):
+    text = open(filename,'r').read()
+    open(filename,'w').write(re.sub(":D",get_time(date),text))
+
+def text_edit(editor, file):
+    from subprocess import call
+    try:
+        if call(editor + " " + file, shell = True) == 0:
+            return
+        else:
+            sys.stderr.write("a problem occured saving your note\n")
+            return
+    except:
+        sys.stderr.write("Error: %s could not be opened \nif it is no longer installed please change the editor in the ~/.tnote/tnoterc file.\n" % editor)
+        sys.exit(1)
+        
+class parser():
+    """parse out ranges or lists from command line, and return as list of notes to work with"""
+    def __init__(self, OPTION, DICT):
+        self.option = OPTION
+        self.lendict = len(DICT)
+
+    def parse_index(self):	
+        """ Parses command line options for displaying a range of notes
+        and return the indexes for the note dict as a list, correct in order
+        and range."""	  
+        if self.option.find(':') >= 0:           # range
+            tmp1,tmp2 = re.split(':',self.option)
+            if tmp1 == '' and tmp2 == '':        #all (:)
+                return [num for num in range(self.lendict)]
+            elif tmp1 == '':                     #upto (:X)
+                return [num for num in range(self.check_int(tmp2)) if num < self.lendict]
+            elif tmp2 == '':                     #from (X:)
+                return [num for num in range(self.check_int(tmp1),self.lendict)]
+            else:                                #range (X:X)
+                return [num for num in range(self.check_int(tmp1),self.check_int(tmp2)) if num < self.lendict]
+        elif self.option.find(',') >= 0:         #list (X,X,X)
+            return [self.check_int(num) for num in self.option.strip(',').split(',') if self.check_int(num) < self.lendict]
+            #return map(self.check_int, re.split(',',self.option.strip(',')))
+        elif len(self.option) == 0:              #no argument, so all
+            return [num for num in range(self.lendict)]		
+        else:                                    #single note
+            return [num for num in [self.check_int(self.option)] if num < self.lendict] 
+
+    def check_int(self, number):
+        """ Check that a string is a valid integer, convert to positive
+        & raise an exception if theres a problem."""
+        tmpnum = number
+        try:
+            number = int(number)
+            if number < 0:         # negative numbers are reverse indexed
+                number = self.lendict + number
+            return number
+        except ValueError:
+            sys.stderr.write("'%s' is not a valid number\n" % tmpnum)
+            sys.exit(1)                   
+
+
+class option_processor():    
+    """process brief, default and delete. do them all together because they can be"""    
+    def __init__(self, DICT, OPTION, EDITOR, DATE):
+        self.dict = DICT
+        self.option = OPTION 
+        self.modifyfilename = ''
+        import curses
+        row,self.columns = curses.initscr().getmaxyx()
+        curses.endwin()
+
+        note_list = parser(self.option, self.dict).parse_index()
+
+        if options.bldelete == True and len(note_list) == len(self.dict):
+            if raw_input("Are you sure you want to delete all notes? (y/n)").lower() not in ['y','yes']: sys.exit(0)
+
+        for entries in note_list: self.do_action(entries)
+    
+        if options.blmodify == True: 
+            self.modifyfilename = self.modifyfilename.strip()
+            text_edit(EDITOR,self.modifyfilename)
+            sub_date(self.modifyfilename, DATE)        
+            
+    def do_action(self, counter):
+        """select correct action to to do"""       
+        if options.blbrief == True:
+            self.brief(counter) 
+        if options.blmodify == True:
+            self.modifyfilename += note_file + self.dict[counter]+" "
+        if options.bldefault == True:
+            print '%s%s' %(colour_print(self.dict[counter],counter),open_file(self.dict, counter))
+        if options.bldelete == True:
+            posix.remove(note_file + self.dict[counter]) 
+        
+    def brief (self, counter):
+        """prints 1 line summary of notes """
+        text = open_file(self.dict, counter)
+        text = text.rstrip()
+        text = re.sub('\n','#',text) #get rid of newlines
+        sys.stdout.write(colour_print(self.dict[counter],counter))
+        grplen = (len(self.dict[counter])-[self.dict[counter].find(':')==-1  and  len(self.dict[counter]) or self.dict[counter].find(':')-2][0]) #get length of group, or zero if not printing
+        if len(text) < self.columns-(len(str(counter))+4+grplen): #len(str(len())) gets the number of           
+            print text
+        else:
+            sys.stdout.write(text[:self.columns-(len(str(counter))+4+grplen)])
+            print "~"
+
+                
+def main():
+    """ parse options, read notes from ~/.tnote, read tnoterc, set globals"""
+    parser = OptionParser(
+        version=" %prog V0.2-1  <holroyd.ben@gmail.com>",   
+        description = "%prog - stickie style notes for the terminal.",
+        usage = "%prog [-badmsighv] [--brief] [--add] [--delete] [--modify]\n [--nocol] [--search] [--importance] [--group] [--help] [--version]\n default: show all notes in full")
+    parser.add_option("-b","--brief",action="store_true",dest="blbrief",default=False,help="view numbered list of the first line of each note." )
+    parser.add_option("-a","--add", action="store_true" , dest="bladd", default=False, help="add a note, (see 'Note' below).")
+    parser.add_option("-d","--delete",action="store_true", dest="bldelete",default=False, help="delete one or a range of entries.")
+    parser.add_option("-m","--modify",action="store_true", dest="blmodify",default=False, help="modify an existing note.")
+    parser.add_option("--nocol" , action="store_true", dest="blnocolour",default=False, help="print out without colour.")    
+    group = OptionGroup(parser,"Options to target search, can be combined with virtually all of the flags above, when used with -a/--add flag, will assign note to that group/importance.")
+    group.add_option("-s","--search",type="string", dest="search", help="search for notes containing a word/phrase (not compatible with -a/--add flag).")
+    group.add_option("-i","--importance", type="int", dest="importance", help="importance of note from 1 to 4.")
+    group.add_option("-g","--group", type="string", dest="group", help="group a note by keyword.")
+    parser.add_option_group(group)
+    group1 = OptionGroup(parser,"Specifying notes", "Virtually all options accept a range argument to specify more than one note eg '1:5', '2,4,6' , see the manpage for more info.")
+    parser.add_option_group(group1) 
+    group2 = OptionGroup(parser, "Note", "If adding a note directly from the command line, it will be intercepted by bash, or whatever shell you are using, so unpredictable things may happen if you use characters that have special meaning in the shell, to avoid this either enclose the note in single brackets or leave the command line blank apart from the --add/-a flag & add the note from within tnote.")  
+    parser.add_option_group(group2) #used as section head for group of opts but use for warning on -a
+    global options
+    (options,args) = parser.parse_args() #actually parse args
+    
+# set default if no other option chosen
+    if options.blbrief == False and options.bldelete == False and options.bladd == False and options.blmodify == False:
+        options.bldefault = True 
+    else: options.bldefault = False
+
+# check incompatible options haven't been chosen	
+    if options.search and options.bladd:
+        parser.error("options can't be combined.")
+    if options.blbrief ^ options.bldelete ^ options.bladd ^ options.bldefault ^ options.blmodify: 
+        pass
+    else: 
+        parser.error("options can't be combined.")
+    
+    OPTION = ''
+# checks for correct arguments, & formats them
+    if options.group != None: options.group = options.group.strip()
+    if options.importance != None and options.importance < 1 or options.importance > 4: parser.error('(-i %d) importance must be between 1 and 4' % options.importance)
+    
+    for arg in args:
+        if options.bladd:  OPTION += arg+" "
+        else:              OPTION += arg   #brief and default
+    if options.bldelete == True or options.blmodify == True:
+        if len(OPTION) == 0: parser.error("%s option requires an argument" % [options.bldelete and "Delete" or "Modify"][0])
+
+    DATE, EDITOR = get_defaults()
+
+#get file names and load them into a dictionary, while filtering out
+#ones we don't want due to -s, -i or -g flags
+    DICT = {}
+    if options.bladd == False: #don't need to load this if we're just adding a note 
+        counter = 0
+        for entries in sorted(posix.listdir(note_file)):
+            if not entries.startswith("tnoterc") and not entries.endswith("~"): #filter out backup + config files
+                if options.importance == None or entries.startswith('00'+str(options.importance)+'-'): #filter by importance if needed
+                    if options.group == None or entries.endswith(':'+options.group): #filter by group if needed
+                        if options.search != None: #do search 
+                            text = open(note_file+entries,'r').read()
+                            if re.search(options.search,text,flags=2) == None: #if match is found goes in to sub loop
+                                continue
+                        DICT[counter] = entries
+                        if re.search('.',open_file(DICT, counter),flags=2) == None: #remove empty files
+                            posix.remove(note_file+DICT[counter])
+                            del DICT[counter]
+                        else: counter += 1           
+		
+        if len(DICT) == 0:
+            if options.importance != None or options.group != None or options.search != None:
+                print "No notes were found, try widenning your search"
+            sys.exit(0)
+        
+									
+    if options.bldelete == True: ############ delete an entry #############
+        try:
+            option_processor(DICT, OPTION, EDITOR, DATE)
+            print("note(s) [%s] deleted" % OPTION)
+        except KeyError:	
+            sys.stderr.write("Error not all note(s) could be deleted check that all selected entries exist\n")
+            sys.exit(2)
+
+    elif options.bladd == True: ################ add a note #################
+        import time,datetime
+        imp, grp = '','' #add importance and group to filename if needed
+        if options.importance != None: imp = "00%s-" % options.importance
+        if options.group != None:      grp = ":%s" % options.group
+        filename = note_file + imp + str(time.mktime(datetime.datetime.now().timetuple())) + grp 
+        if len(OPTION) > 0: open(filename,'w').write(OPTION)
+        else: text_edit(EDITOR, filename)
+        
+        sub_date(filename, DATE)
+
+    else:       ####### brief, modify & default #######
+        option_processor(DICT, OPTION, EDITOR, DATE)
+
+    print  #prints a final newline	
+
+if __name__ == '__main__':
+    main()
+    

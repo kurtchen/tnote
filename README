@@ -1,0 +1,42 @@
+Tnote README file
+=================
+
+INTRO
+~~~~~
+
+Tnote aims to be a sticky style note taking application for the terminal, making it easy and quick to take, view and search notes from the terminal.
+Its written in python, in fact I wrote it to learn python and just happened to turn in to somthing people might find useful.
+Version 0.2 is basically a rewrite adding options for grouping notes and colours. 
+
+
+LICENSE
+~~~~~~~
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or (at
+your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.
+
+
+DEPENDENCIES
+~~~~~~~~~~~~
+ * Python2.5+
+
+INSTALLATION
+~~~~~~~~~~~~
+
+    $ gunzip -c tnote-x.x.x.tar.gz | tar x
+    $ cd tnote-x.x.x
+    $ sudo python setup.py 
+
+

@@ -1,0 +1,18 @@
+Changelog
+Tnote
+
+
+* Tnote V0.2-1: 18/02/10
+- Extensive code refactoring.
+- Introduced --importance & --group for note sorting.
+- Modified behaviour of search, can now be used in conjunction with
+  other flags, but indexes now always start from 0 rather than than 
+  being indexed the same as a default view, the same as --importance
+  and --group flags.
+- Added --nocol no colour flag just incase you want to pipe to less or
+  something.
+- modified notes are now checked for ':D' and todays date is inserted.
+
+
+* Tnote V0.1-1
+Released: 08/04/09

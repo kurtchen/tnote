@@ -1,0 +1,16 @@
+Installation Instructions
+*************************
+
+tnote uses the distutil module from python therefore the installation procedure is slightly different
+
+simply 
+cd to the correct directory
+$ tar -xzf tnotes-x.x.x.tar.gz
+$ cd tnotes-x.x.x
+$ sudo python setup.py install
+
+
+to get rid of all the packages created by the setup script type
+
+$ python setup.py clean
+

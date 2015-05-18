@@ -218,12 +218,13 @@ def main():
     parser = OptionParser(
         version=" %prog V0.2-1  <holroyd.ben@gmail.com>",   
         description = "%prog - stickie style notes for the terminal.",
-        usage = "%prog [-badmsighv] [--brief] [--add] [--delete] [--modify]\n [--nocol] [--search] [--importance] [--group] [--help] [--version]\n default: show all notes in full")
+        usage = "%prog [-badmsighv] [--brief] [--add] [--delete] [--modify] [--groups]\n [--nocol] [--search] [--importance] [--group] [--help] [--version]\n default: show all notes in full")
     parser.add_option("-b","--brief",action="store_true",dest="blbrief",default=False,help="view numbered list of the first line of each note." )
     parser.add_option("-a","--add", action="store_true" , dest="bladd", default=False, help="add a note, (see 'Note' below).")
     parser.add_option("-d","--delete",action="store_true", dest="bldelete",default=False, help="delete one or a range of entries.")
     parser.add_option("-m","--modify",action="store_true", dest="blmodify",default=False, help="modify an existing note.")
     parser.add_option("--nocol" , action="store_true", dest="blnocolour",default=False, help="print out without colour.")    
+    parser.add_option("--groups" , action="store_true", dest="blgroups",default=False, help="list all of the groups")    
     group = OptionGroup(parser,"Options to target search, can be combined with virtually all of the flags above, when used with -a/--add flag, will assign note to that group/importance.")
     group.add_option("-s","--search",type="string", dest="search", help="search for notes containing a word/phrase (not compatible with -a/--add flag).")
     group.add_option("-i","--importance", type="int", dest="importance", help="importance of note from 1 to 4.")
@@ -265,10 +266,14 @@ def main():
 #get file names and load them into a dictionary, while filtering out
 #ones we don't want due to -s, -i or -g flags
     DICT = {}
+    GROUPS = set()
     if options.bladd == False: #don't need to load this if we're just adding a note 
         counter = 0
         for entries in sorted(posix.listdir(note_file)):
             if not entries.startswith("tnoterc") and not entries.endswith("~") and not entries.startswith(".git"): #filter out backup + config files
+                tmp = entries.split(":",1)
+                if len(tmp) == 2:
+                    GROUPS.add(tmp[1])
                 if options.importance == None or entries.startswith('00'+str(options.importance)+'-'): #filter by importance if needed
                     if options.group == None or entries.endswith(':'+options.group): #filter by group if needed
                         if options.search != None: #do search 
@@ -280,6 +285,14 @@ def main():
                             posix.remove(note_file+DICT[counter])
                             del DICT[counter]
                         else: counter += 1           
+        if options.blgroups == True:
+            if len(GROUPS) == 0:
+                print "No groups found."
+            else:
+                for g in sorted(GROUPS):
+                    print g
+
+            sys.exit(0)
 		
         if len(DICT) == 0:
             if options.importance != None or options.group != None or options.search != None:
